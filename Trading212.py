@@ -1,13 +1,14 @@
 import requests
 import json
 import pandas as pd
+from settings import API_KEY  # Import API key from settings.py
 
 # Trading212 API URL
 url = "https://live.trading212.com/api/v0/equity/portfolio"
 
-# Replace 'API_KEY_HERE' with your actual API key
+# Use the API key from settings.py
 headers = {
-    "Authorization": "API_KEY_HERE"
+    "Authorization": API_KEY
 }
 
 # Fetch data from Trading212 API
