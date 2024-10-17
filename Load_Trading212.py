@@ -24,6 +24,35 @@ def insert_batch(conn, file_name):
     conn.commit()
     return batch_id
 
+# Function to insert data into LandingData_Staging (all VARCHAR columns except BatchID)
+def insert_staging_data(conn, df, batch_id):
+    cursor = conn.cursor()
+
+    # Insert each row into the LandingData_Staging table
+    for index, row in df.iterrows():
+        try:
+            cursor.execute("""
+                INSERT INTO LandingData_Staging (
+                    BatchID, Action, Time, ISIN, Ticker, Name, NoOfShares, PricePerShare, 
+                    CurrencyPriceShare, ExchangeRate, TotalAmount, CurrencyTotal, 
+                    WithholdingTax, CurrencyWithholdingTax, StampDutyReserveTax, 
+                    CurrencyStampDuty, Notes, TransactionID, CurrencyConversionFee, 
+                    CurrencyConversionFeeCurrency
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                batch_id, row['Action'], row['Time'], row['ISIN'], row['Ticker'], row['Name'], 
+                row['No. of shares'], row['Price / share'], row['Currency (Price / share)'], row['Exchange rate'],
+                row['Total'], row['Currency (Total)'], row['Withholding tax'], row['Currency (Withholding tax)'], 
+                row['Stamp duty reserve tax'], row['Currency (Stamp duty reserve tax)'], row['Notes'], 
+                row['ID'], row['Currency conversion fee'], row['Currency (Currency conversion fee)']
+            ))
+        except pyodbc.Error as e:
+            print(f"Error inserting row {index}: {e}")
+            print(row)
+    
+    conn.commit()
+
+
 # Function to insert Landing Data (raw file data)
 def insert_landing_data(conn, df, batch_id):
     cursor = conn.cursor()
@@ -170,12 +199,15 @@ def process_file(file_path):
     df = load_csv(file_path)
     
     # Review data in chunks of 5 rows
-    review_data(df)
+    # review_data(df)
 
-    # # Insert Batch and get BatchID
-    # file_name = file_path.split('/')[-1]
-    # batch_id = insert_batch(conn, file_name)
+    # Insert Batch and get BatchID
+    file_name = file_path.split('/')[-1]
+    batch_id = insert_batch(conn, file_name)
     
+    # Insert data into LandingData_Staging table
+    #insert_staging_data(conn, df, batch_id)
+
     # # Insert data into tables
     # insert_landing_data(conn, df, batch_id)
     # insert_deposit_interest(conn, df, batch_id)
