@@ -28,9 +28,23 @@ def insert_batch(conn, file_name):
 def insert_staging_data(conn, df, batch_id):
     cursor = conn.cursor()
 
-    # Insert each row into the LandingData_Staging table
-    for index, row in df.iterrows():
+    # Counter to track rows inserted
+    row_count = 0
+
+    # Replace NaN with None (this will be inserted as NULL in SQL)
+    #transactions_df = df.where(pd.notnull(df), None)
+
+    # Convert all values in the DataFrame to string
+    transactions_df = df.astype(str)
+
+    # Truncate the table before loading new data
+    cursor.execute("TRUNCATE TABLE LandingData_Staging")
+    conn.commit()
+
+    for index, row in transactions_df.iterrows():
         try:
+           
+            # Insert statement with all columns
             cursor.execute("""
                 INSERT INTO LandingData_Staging (
                     BatchID, Action, Time, ISIN, Ticker, Name, NoOfShares, PricePerShare, 
@@ -46,11 +60,56 @@ def insert_staging_data(conn, df, batch_id):
                 row['Stamp duty reserve tax'], row['Currency (Stamp duty reserve tax)'], row['Notes'], 
                 row['ID'], row['Currency conversion fee'], row['Currency (Currency conversion fee)']
             ))
+            
+            # Increment row counter
+            row_count += 1
+
+            # Commit after every 5 rows
+            if row_count % 100 == 0:
+                conn.commit()
+                print(f"Committed after {row_count} rows")
+                #break
+
         except pyodbc.Error as e:
             print(f"Error inserting row {index}: {e}")
             print(row)
-    
+            # Print statement for debugging each column
+            print(f"BatchID: {batch_id} (Type: {type(batch_id).__name__})")
+            print(f"Action: {row['Action']} (Type: {type(row['Action']).__name__})")
+            print(f"Time: {row['Time']} (Type: {type(row['Time']).__name__})")
+            print(f"ISIN: {row['ISIN']} (Type: {type(row['ISIN']).__name__})")
+            print(f"Ticker: {row['Ticker']} (Type: {type(row['Ticker']).__name__})")
+            print(f"Name: {row['Name']} (Type: {type(row['Name']).__name__})")
+            print(f"No. of shares: {row['No. of shares']} (Type: {type(row['No. of shares']).__name__})")
+            print(f"Price / share: {row['Price / share']} (Type: {type(row['Price / share']).__name__})")
+            print(f"Currency (Price / share): {row['Currency (Price / share)']} (Type: {type(row['Currency (Price / share)']).__name__})")
+            print(f"Exchange rate: {row['Exchange rate']} (Type: {type(row['Exchange rate']).__name__})")
+            print(f"Total: {row['Total']} (Type: {type(row['Total']).__name__})")
+            print(f"Currency (Total): {row['Currency (Total)']} (Type: {type(row['Currency (Total)']).__name__})")
+            print(f"Withholding tax: {row['Withholding tax']} (Type: {type(row['Withholding tax']).__name__})")
+            print(f"Currency (Withholding tax): {row['Currency (Withholding tax)']} (Type: {type(row['Currency (Withholding tax)']).__name__})")
+            print(f"Stamp duty reserve tax: {row['Stamp duty reserve tax']} (Type: {type(row['Stamp duty reserve tax']).__name__})")
+            print(f"Currency (Stamp duty reserve tax): {row['Currency (Stamp duty reserve tax)']} (Type: {type(row['Currency (Stamp duty reserve tax)']).__name__})")
+            print(f"Notes: {row['Notes']} (Type: {type(row['Notes']).__name__})")
+            print(f"ID: {row['ID']} (Type: {type(row['ID']).__name__})")
+            print(f"Currency conversion fee: {row['Currency conversion fee']} (Type: {type(row['Currency conversion fee']).__name__})")
+            print(f"Currency (Currency conversion fee): {row['Currency (Currency conversion fee)']} (Type: {type(row['Currency (Currency conversion fee)']).__name__})")
+
+
+    # Final commit for any remaining rows after the loop
+    if row_count % 100 != 0:
+        conn.commit()
+        print(f"Final commit after {row_count} rows")
+
     conn.commit()
+    # Execute the stored procedure
+    try:
+        cursor.execute("{CALL [dbo].[spCleanup_LandingData_Staging]}")
+        conn.commit()  # Commit the transaction if needed
+        print("Stored procedure executed successfully.")
+    except pyodbc.Error as e:
+        print(f"Error executing stored procedure: {e}")
+
 
 
 # Function to insert Landing Data (raw file data)
@@ -206,7 +265,7 @@ def process_file(file_path):
     batch_id = insert_batch(conn, file_name)
     
     # Insert data into LandingData_Staging table
-    #insert_staging_data(conn, df, batch_id)
+    insert_staging_data(conn, df, batch_id)
 
     # # Insert data into tables
     # insert_landing_data(conn, df, batch_id)
